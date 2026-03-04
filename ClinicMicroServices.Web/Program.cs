@@ -75,27 +75,6 @@ namespace ClinicMicroServices.Web
                     RoleClaimType = ClaimTypes.Role,
                     NameClaimType = ClaimTypes.NameIdentifier
                 };
-
-                options.Events = new JwtBearerEvents
-                {
-                    OnMessageReceived = ctx =>
-                    {
-                        var auth = ctx.Request.Headers["Authorization"].FirstOrDefault();
-                        if (!string.IsNullOrWhiteSpace(auth) &&
-                            auth.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase))
-                        {
-                            var token = auth.Substring("Bearer ".Length).Trim();
-                            token = new string(token.Where(c => !char.IsWhiteSpace(c)).ToArray());
-                            ctx.Token = token;
-                        }
-                        return Task.CompletedTask;
-                    },
-                    OnAuthenticationFailed = ctx =>
-                    {
-                        Console.WriteLine("JWT Auth Failed: " + ctx.Exception);
-                        return Task.CompletedTask;
-                    }
-                };
             });
 
 
