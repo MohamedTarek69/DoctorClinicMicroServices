@@ -12,6 +12,7 @@ using Microsoft.IdentityModel.Tokens;
 using System.Security.Claims;
 using System.IdentityModel.Tokens.Jwt;
 using System.Text;
+using ClinicMicroServices.Web.Factories;
 
 namespace ClinicMicroServices.Web
 {
@@ -35,6 +36,10 @@ namespace ClinicMicroServices.Web
             builder.Services.AddDbContext<ClinicDbContext>(options =>
                 options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection"))
             );
+            builder.Services.Configure<ApiBehaviorOptions>(options =>
+            {
+                options.InvalidModelStateResponseFactory = ApiResponseFactory.GenerateApiValidationResponse;
+            });
 
             builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
             builder.Services.AddScoped<IDoctorService, DoctorService>();
@@ -100,25 +105,25 @@ namespace ClinicMicroServices.Web
                 options.ListenAnyIP(5128); // ✅ Clinic port
             });
 
-            builder.Services.Configure<ApiBehaviorOptions>(options =>
-            {
-                options.InvalidModelStateResponseFactory = context =>
-                {
-                    return new BadRequestObjectResult(new
-                    {
-                        title = "Validation Error",
-                        status = 400,
-                        detail = "One or more validation errors occurred",
-                        traceId = context.HttpContext.TraceIdentifier,
-                        errors = context.ModelState
-                            .Where(x => x.Value?.Errors.Count > 0)
-                            .ToDictionary(
-                                kvp => kvp.Key,
-                                kvp => kvp.Value!.Errors.Select(e => e.ErrorMessage).ToArray()
-                            )
-                    });
-                };
-            });
+            //builder.Services.Configure<ApiBehaviorOptions>(options =>
+            //{
+            //    options.InvalidModelStateResponseFactory = context =>
+            //    {
+            //        return new BadRequestObjectResult(new
+            //        {
+            //            title = "Validation Error",
+            //            status = 400,
+            //            detail = "One or more validation errors occurred",
+            //            traceId = context.HttpContext.TraceIdentifier,
+            //            errors = context.ModelState
+            //                .Where(x => x.Value?.Errors.Count > 0)
+            //                .ToDictionary(
+            //                    kvp => kvp.Key,
+            //                    kvp => kvp.Value!.Errors.Select(e => e.ErrorMessage).ToArray()
+            //                )
+            //        });
+            //    };
+            //});
 
             #endregion
 
