@@ -7,9 +7,9 @@ using System.Linq.Expressions;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace ClinicMicroServices.Services.Specifications
+namespace ClinicMicroServices.Services.Specifications.Doctors
 {
-    public class DoctorByEmailSpec : ISpecifications<Doctor, Guid>
+    public class DoctorByIdentityUserIdSpec : ISpecifications<Doctor, Guid>
     {
         public ICollection<Expression<Func<Doctor, object>>> IncludeExpressions { get; }
             = new List<Expression<Func<Doctor, object>>>();
@@ -19,14 +19,14 @@ namespace ClinicMicroServices.Services.Specifications
         public Expression<Func<Doctor, object>> OrderBy { get; private set; } = DoctorSpecsDefaults.DefaultOrderBy;
         public Expression<Func<Doctor, object>> OrderByDescending { get; private set; } = DoctorSpecsDefaults.DefaultOrderByDesc;
 
-        public int Take { get; private set; } = 1; // ✅ just need first
+        public int Take { get; private set; } = 1;
         public int Skip { get; private set; } = 0;
         public bool IsPaginated { get; private set; } = true;
 
-        public DoctorByEmailSpec(string email)
+        public DoctorByIdentityUserIdSpec(string identityUserId)
         {
-            var e = email.Trim().ToLower();
-            Critria = d => d.Email.ToLower() == e;
+            var id = identityUserId.Trim();
+            Critria = d => d.IdentityUserId == id;
         }
     }
 }

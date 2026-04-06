@@ -48,6 +48,12 @@ namespace ClinicMicroServices.Persistence.Repositories
                                               .AsNoTracking()
                                               .FirstOrDefaultAsync();
         }
+        public async Task<bool> AnyAsync(ISpecifications<TEntity, TKey> spec)
+        {
+            return await SpecificationEvaluator.CreateQuery<TEntity, TKey>(_dbSet.AsQueryable(), spec)
+                                              .AsNoTracking()
+                                              .AnyAsync();
+        }
 
         public async Task<TEntity?> GetByIdAsync(TKey id)
         {
@@ -62,6 +68,16 @@ namespace ClinicMicroServices.Persistence.Repositories
         public void Update(TEntity entity)
         {
             _dbSet.Update(entity);
+        }
+
+        public async Task<IReadOnlyList<TEntity>> GetAllWithSpecAsync(ISpecifications<TEntity, TKey> spec)
+        {
+            return await ApplySpecification(spec).ToListAsync();
+        }
+
+        private IQueryable<TEntity> ApplySpecification(ISpecifications<TEntity, TKey> spec)
+        {
+            return SpecificationEvaluator.CreateQuery(_dbContext.Set<TEntity>(), spec);
         }
 
     }

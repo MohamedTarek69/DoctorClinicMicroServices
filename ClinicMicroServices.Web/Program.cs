@@ -12,6 +12,7 @@ using Microsoft.IdentityModel.Tokens;
 using System.Security.Claims;
 using System.Text;
 using ClinicMicroServices.Web.Factories;
+using ClinicMicroServices.Persistence.Data.Config;
 
 namespace ClinicMicroServices.Web
 {
@@ -41,9 +42,15 @@ namespace ClinicMicroServices.Web
                 options.InvalidModelStateResponseFactory = ApiResponseFactory.GenerateApiValidationResponse;
             });
 
+            builder.Services.AddHttpContextAccessor();
+
             // Services
             builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
             builder.Services.AddScoped<IDoctorService, DoctorService>();
+            builder.Services.AddScoped<IClinicService, ClinicService>();
+            builder.Services.AddScoped<ITimeSlotService, TimeSlotService>();
+            builder.Services.AddScoped<IAppointmentService, AppointmentService>();
+            builder.Services.AddScoped<IDashboardService, DashboardService>();
 
             // HTTP Client → Identity Service
             builder.Services.AddHttpClient<IIdentityClient, IdentityClient>(client =>

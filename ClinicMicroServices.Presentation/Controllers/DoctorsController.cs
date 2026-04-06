@@ -100,5 +100,17 @@ namespace ClinicMicroServices.Presentation.Controllers
             var result = await _doctorService.ActivateDoctorAsync(id);
             return HandleResult(result);
         }
+
+        [AllowAnonymous]
+        [HttpGet("internal/is-active/{identityUserId}")]
+        public async Task<IActionResult> IsDoctorActive(string identityUserId)
+        {
+            var result = await _doctorService.IsDoctorActiveByIdentityUserIdAsync(identityUserId);
+
+            if (result.IsFailure)
+                return NotFound(result.Errors);
+
+            return Ok(new { isActive = result.Value });
+        }
     }
 }

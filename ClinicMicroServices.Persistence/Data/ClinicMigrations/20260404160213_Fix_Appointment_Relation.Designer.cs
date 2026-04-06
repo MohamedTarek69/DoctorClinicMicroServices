@@ -4,6 +4,7 @@ using ClinicMicroServices.Persistence.Data.DbContexts;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -11,9 +12,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace ClinicMicroServices.Persistence.Data.ClinicMigrations
 {
     [DbContext(typeof(ClinicDbContext))]
-    partial class ClinicDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260404160213_Fix_Appointment_Relation")]
+    partial class Fix_Appointment_Relation
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -35,9 +38,6 @@ namespace ClinicMicroServices.Persistence.Data.ClinicMigrations
 
                     b.Property<Guid>("PatientId")
                         .HasColumnType("uniqueidentifier");
-
-                    b.Property<decimal>("PriceAtBooking")
-                        .HasColumnType("decimal(18,2)");
 
                     b.Property<int>("Status")
                         .ValueGeneratedOnAdd()
@@ -154,9 +154,6 @@ namespace ClinicMicroServices.Persistence.Data.ClinicMigrations
 
                     b.Property<DateTime>("EndTime")
                         .HasColumnType("datetime2");
-
-                    b.Property<decimal>("Price")
-                        .HasColumnType("decimal(18,2)");
 
                     b.Property<DateTime>("StartTime")
                         .HasColumnType("datetime2");

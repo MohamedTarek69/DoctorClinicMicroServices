@@ -1,6 +1,6 @@
 ﻿using ClinicMicroServices.Domain.Contracts;
 using ClinicMicroServices.Domain.Entites;
-using ClinicMicroServices.Services.Specifications;
+using ClinicMicroServices.Services.Specifications.Doctors;
 using ClinicMicroServices.Services_Abstraction.Interfaces;
 using ClinicMicroServices.Shared;
 using ClinicMicroServices.Shared.CommonResult;
@@ -164,10 +164,8 @@ namespace ClinicMicroServices.Services.Services
             doctor.IsActive = false;
             repo.Update(doctor);
             await _unitOfWork.SaveChangesAsync();
-            // Optional: Deactivate in Identity
-            //var identityResult = await _identityClient.DeactivateUserAsync(doctor.IdentityUserId);
-            //if (identityResult.IsFailure)
-            //    return Result<bool>.Fail(identityResult.Errors.ToList());
+                //Optional: Deactivate in Identity
+               //var identityResult = await _identityClient.DeactivateUserAsync(d 
             return Result<bool>.Ok(true);
 
         }
@@ -203,6 +201,21 @@ namespace ClinicMicroServices.Services.Services
             var doctor = await repo.GetByIdAsync(doctorId);
             if (doctor is null) return false;
             return doctor.IdentityUserId == identityUserId;
+        }
+
+        public async Task<Result<bool>> IsDoctorActiveByIdentityUserIdAsync(string identityUserId)
+        {
+            var repo = _unitOfWork.GetRepository<Doctor, Guid>();
+
+            var doctors = await repo.GetAllAsync(new DoctorByIdentityUserIdSpec(identityUserId));
+            var doctor = doctors.FirstOrDefault();
+
+            if (doctor is null)
+                return Result<bool>.Fail(
+                    Error.NotFound("Doctor.NotFound", "Doctor not found.")
+                );
+
+            return Result<bool>.Ok(doctor.IsActive);
         }
     }
 }

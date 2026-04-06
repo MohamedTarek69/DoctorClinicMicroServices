@@ -17,6 +17,8 @@ namespace ClinicMicroServices.Domain.Entites
         [Required(ErrorMessage = "Appointment status is required.")]
         public AppointmentStatus Status { get; set; } = AppointmentStatus.Pending;
 
+        public decimal PriceAtBooking { get; set; }
+
         #endregion
 
         #region Navigation Properties

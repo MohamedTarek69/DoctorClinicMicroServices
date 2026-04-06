@@ -6,7 +6,7 @@ using System.Linq.Expressions;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace ClinicMicroServices.Services.Specifications
+namespace ClinicMicroServices.Services.Specifications.Doctors
 {
     internal static class DoctorSpecsDefaults
     {

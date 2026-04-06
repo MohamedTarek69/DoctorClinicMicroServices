@@ -19,5 +19,6 @@ namespace ClinicMicroServices.Services_Abstraction.Interfaces
         Task<Result<bool>> DeactivateDoctorAsync(Guid id);
         Task<Result<bool>> UpdateDoctorPasswordAsync(Guid id, UpdateDoctorPasswordRequest newPassword);
         Task<bool> IsDoctorOwnerAsync(Guid doctorId, string identityUserId);
+        Task<Result<bool>> IsDoctorActiveByIdentityUserIdAsync(string identityUserId);
     }
 }
