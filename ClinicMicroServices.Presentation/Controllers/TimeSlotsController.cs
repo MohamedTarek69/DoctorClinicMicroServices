@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Mvc;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Security.Claims;
 using System.Text;
 using System.Threading.Tasks;
 
@@ -23,10 +24,12 @@ namespace ClinicMicroServices.Presentation.Controllers
 
         // ✅ Create slot (Admin or Doctor)
         [Authorize(Roles = "Doctor")]
-        [HttpPost("createtimeslots")]
+        [HttpPost("createtimeslots")]   
         public async Task<IActionResult> Create([FromBody] CreateTimeSlotRequest request)
         {
-            var result = await _service.CreateAsync(request);
+            var doctorId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+
+            var result = await _service.CreateAsync(request, doctorId!);
             return HandleResult(result);
         }
 
@@ -53,7 +56,9 @@ namespace ClinicMicroServices.Presentation.Controllers
         [HttpDelete("deletetimeslots/{id:int}")]
         public async Task<IActionResult> Delete(int id)
         {
-            var result = await _service.DeleteAsync(id);
+            var doctorId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+
+            var result = await _service.DeleteAsync(id, doctorId!);
             return HandleResult(result);
         }
 
@@ -62,7 +67,9 @@ namespace ClinicMicroServices.Presentation.Controllers
         [HttpPut("updatetimeslots/{id:int}")]
         public async Task<IActionResult> Update(int id, [FromBody] UpdateTimeSlotRequest request)
         {
-            var result = await _service.UpdateAsync(id, request);
+            var doctorId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+
+            var result = await _service.UpdateAsync(id, request, doctorId!);
             return HandleResult(result);
         }
     }

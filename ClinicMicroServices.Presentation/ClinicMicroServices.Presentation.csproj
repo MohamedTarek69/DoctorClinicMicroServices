@@ -12,6 +12,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\ClinicMicroServices.Persistence\ClinicMicroServices.Persistence.csproj" />
     <ProjectReference Include="..\ClinicMicroServices.Services Abstraction\ClinicMicroServices.Services Abstraction.csproj" />
   </ItemGroup>
 
