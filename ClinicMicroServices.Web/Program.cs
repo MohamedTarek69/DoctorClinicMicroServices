@@ -96,7 +96,7 @@ namespace ClinicMicroServices.Web
                 options.AddPolicy("AdminOnly", p => p.RequireRole("Admin"));
                 options.AddPolicy("DoctorOnly", p => p.RequireRole("Doctor"));
                 options.AddPolicy("LabOnly", p => p.RequireRole("Lab"));
-                options.AddPolicy("UserOnly", p => p.RequireRole("User"));
+                options.AddPolicy("PatientOnly", p => p.RequireRole("Patient"));
                 options.AddPolicy("AdminOrDoctor", p => p.RequireRole("Admin", "Doctor"));
             });
 
