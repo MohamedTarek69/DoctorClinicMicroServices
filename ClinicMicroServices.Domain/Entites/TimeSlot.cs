@@ -18,7 +18,9 @@ namespace ClinicMicroServices.Domain.Entites
         [Required(ErrorMessage = "End time is required.")]
         public DateTime EndTime { get; set; }
 
-        public bool IsAvailable { get; set; } = true;
+        public int Capacity { get; set; }
+
+        public decimal Price { get; set; }
 
         #endregion
 
@@ -29,8 +31,8 @@ namespace ClinicMicroServices.Domain.Entites
 
         public DoctorClinic Clinic { get; set; } = default!;
 
-        // One-to-One (optional)
-        public Appointment? Appointment { get; set; }
+        // One-to-Many (optional)
+        public ICollection<Appointment> Appointments { get; set; } = new List<Appointment>();
 
         #endregion
 

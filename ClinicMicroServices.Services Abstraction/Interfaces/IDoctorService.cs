@@ -14,10 +14,11 @@ namespace ClinicMicroServices.Services_Abstraction.Interfaces
         Task<Result<DoctorResponse>> CreateDoctorAsync(CreateDoctorRequest request);
         Task<Result<DoctorResponse>> GetDoctorByIdAsync(Guid id, bool includeClinics = false);
         Task<Result<PaginatedResult<DoctorResponse>>> GetDoctorsAsync(ClinicQueryParams qp);
-        Task<Result<DoctorResponse>> UpdateDoctorAsync(Guid id, UpdateDoctorRequest request);
+        Task<Result<DoctorResponse>> UpdateDoctorAsync(Guid id, UpdateDoctorRequest request, string token);
         Task<Result<bool>> ActivateDoctorAsync(Guid id);
         Task<Result<bool>> DeactivateDoctorAsync(Guid id);
-        Task<Result<bool>> UpdateDoctorPasswordAsync(Guid id, UpdateDoctorPasswordRequest newPassword);
+        Task<Result<bool>> UpdateDoctorPasswordAsync(Guid id, UpdateDoctorPasswordRequest newPassword, string token);
         Task<bool> IsDoctorOwnerAsync(Guid doctorId, string identityUserId);
+        Task<Result<bool>> IsDoctorActiveByIdentityUserIdAsync(string identityUserId);
     }
 }

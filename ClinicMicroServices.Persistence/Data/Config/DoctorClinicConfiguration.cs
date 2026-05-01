@@ -7,7 +7,7 @@ using ClinicMicroServices.Domain.Entites;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
-namespace ClinicMicroServices.Persistence
+namespace ClinicMicroServices.Persistence.Data.Config
 {
     public class DoctorClinicConfiguration : IEntityTypeConfiguration<DoctorClinic>
     {

@@ -9,7 +9,9 @@ namespace ClinicMicroServices.Services.Services
     using ClinicMicroServices.Services_Abstraction.Interfaces;
     using ClinicMicroServices.Shared.CommonResult;
     using ClinicMicroServices.Shared.DTOs.DoctorDtos;
+    using System.Net.Http.Headers;
     using System.Net.Http.Json;
+    using System.Text.Json;
     using static System.Net.WebRequestMethods;
 
     public class IdentityClient : IIdentityClient
@@ -52,27 +54,64 @@ namespace ClinicMicroServices.Services.Services
             return Result<string>.Ok(result.Id);
         }
 
-        public async Task<Result<UpdateIdentityUserResponse>> UpdateDoctorAsync(string userId, UpdateIdentityUserRequest request)
+        public async Task<Result<UpdateIdentityUserResponse>> UpdateDoctorAsync(
+                                                                 string userId,
+                                                                 UpdateIdentityUserRequest request,
+                                                                 string token) // 👈 مهم
         {
-            var response = await _httpClient.PatchAsJsonAsync($"/Clinic/Authentication/UpdateUser/{userId}", request);
+            var httpRequest = new HttpRequestMessage(
+                HttpMethod.Patch,
+                $"/Clinic/Authentication/UpdateUser/{userId}");
+
+            httpRequest.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", token.Replace("Bearer ", ""));
+
+            httpRequest.Content = JsonContent.Create(request);
+
+            var response = await _httpClient.SendAsync(httpRequest);
+
+            var content = await response.Content.ReadAsStringAsync();
 
             if (!response.IsSuccessStatusCode)
+            {
                 return Result<UpdateIdentityUserResponse>.Fail(
-                    Error.Failure("Identity.UpdateFailed", "Failed to update identity user")
+                    Error.Failure("Identity.UpdateFailed", content)
                 );
+            }
 
-            var result = await response.Content.ReadFromJsonAsync<UpdateIdentityUserResponse>();
+            var result = JsonSerializer.Deserialize<UpdateIdentityUserResponse>(content,
+                new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+
             return Result<UpdateIdentityUserResponse>.Ok(result!);
         }
 
-        public async Task<Result<bool>> UpdatePasswordAsync(string userId, UpdateDoctorPasswordRequest newPassword)
+        public async Task<Result<bool>> UpdatePasswordAsync(
+                                            string userId,
+                                            UpdateDoctorPasswordRequest newPassword,
+                                            string token) // 👈 مهم
         {
             var payload = new { newPassword = newPassword.NewPassword };
-            var response = await _httpClient.PatchAsJsonAsync($"/Clinic/Authentication/UpdatePassword/{userId}", payload);
+
+            var httpRequest = new HttpRequestMessage(
+                HttpMethod.Patch,
+                $"/Clinic/Authentication/UpdatePassword/{userId}");
+
+            httpRequest.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", token.Replace("Bearer ", ""));
+
+            httpRequest.Content = JsonContent.Create(payload);
+
+            var response = await _httpClient.SendAsync(httpRequest);
+
+            var content = await response.Content.ReadAsStringAsync();
+
             if (!response.IsSuccessStatusCode)
+            {
                 return Result<bool>.Fail(
-                    Error.Failure("Identity.PasswordUpdateFailed", "Failed to update password")
+                    Error.Failure("Identity.PasswordUpdateFailed", content)
                 );
+            }
+
             return Result<bool>.Ok(true);
         }
 
@@ -83,6 +122,12 @@ namespace ClinicMicroServices.Services.Services
 
             var body = await res.Content.ReadFromJsonAsync<IsActiveResponse>();
             return body?.IsActive ?? false;
+        }
+
+        public void SetToken(string token)
+        {
+            _httpClient.DefaultRequestHeaders.Authorization =
+                new AuthenticationHeaderValue("Bearer", token.Replace("Bearer ", ""));
         }
 
     }

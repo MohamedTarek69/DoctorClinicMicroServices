@@ -21,5 +21,10 @@ namespace ClinicMicroServices.Domain.Contracts
         void Remove(TEntity entity);
 
         Task<int> CountAsync(ISpecifications<TEntity, TKey> specifications);
+        Task<bool> AnyAsync(ISpecifications<TEntity, TKey> specifications);
+
+        Task<IReadOnlyList<TEntity>> GetAllWithSpecAsync(ISpecifications<TEntity, TKey> spec);
+
+
     }
 }

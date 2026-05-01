@@ -11,9 +11,10 @@ namespace ClinicMicroServices.Services_Abstraction.Interfaces
     public interface IIdentityClient
     {
         Task<Result<string>> RegisterDoctorAsync(CreateDoctorRequest request);
-        Task<Result<UpdateIdentityUserResponse>> UpdateDoctorAsync(string userId, UpdateIdentityUserRequest request);
-        Task<Result<bool>> UpdatePasswordAsync(string userId, UpdateDoctorPasswordRequest request);
+        Task<Result<UpdateIdentityUserResponse>> UpdateDoctorAsync(string userId, UpdateIdentityUserRequest request, string token);
+        Task<Result<bool>> UpdatePasswordAsync(string userId, UpdateDoctorPasswordRequest request, string token);
         Task<bool> IsDoctorActiveAsync(string identityUserId);
+        void SetToken(string token);
     }
 }
 
