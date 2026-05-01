@@ -1,5 +1,6 @@
 ﻿using ClinicMicroServices.Domain.Contracts;
 using ClinicMicroServices.Domain.Entites;
+using ClinicMicroServices.Services.Specifications.Doctors;
 using ClinicMicroServices.Services.Specifications.TimeSlots;
 using ClinicMicroServices.Services_Abstraction.Interfaces;
 using ClinicMicroServices.Shared.CommonResult;
@@ -23,13 +24,31 @@ namespace ClinicMicroServices.Services.Services
 
         #region Create
 
-        public async Task<Result<TimeSlotResponse>> CreateAsync(CreateTimeSlotRequest request)
+        public async Task<Result<TimeSlotResponse>> CreateAsync(CreateTimeSlotRequest request, string doctorId)
         {
             var repo = _unitOfWork.GetRepository<TimeSlot, int>();
-            var clinicRepo = _unitOfWork.GetRepository<DoctorClinic, int>();
 
-            // ✅ Validation
-            #region Validation
+            // 🔹 1. Get Doctor from IdentityUserId
+            var doctorRepo = _unitOfWork.GetRepository<Doctor, Guid>();
+
+            var doctorSpec = new DoctorByIdentityUserIdSpec(doctorId);
+            var doctors = await doctorRepo.GetAllAsync(doctorSpec);
+            var doctor = doctors.FirstOrDefault();
+
+            if (doctor is null)
+                return Result<TimeSlotResponse>.Fail(
+                    Error.NotFound("Doctor.NotFound", "Doctor not found for this user.")
+                );
+
+            // 🔹 2. Ownership validation (Clinic ↔ Doctor)
+            var isOwner = await IsDoctorOwnerOfClinic(request.ClinicId, doctor.Id);
+
+            if (!isOwner)
+                return Result<TimeSlotResponse>.Fail(
+                    Error.Forbidden("TimeSlot.Forbidden", "You are not allowed to add slots to this clinic.")
+                );
+
+            // 🔹 3. Validations
             if (request.EndTime <= request.StartTime)
                 return Result<TimeSlotResponse>.Fail(
                     Error.Validation("TimeSlot.InvalidRange", "End time must be greater than start time.")
@@ -48,11 +67,9 @@ namespace ClinicMicroServices.Services.Services
             if (request.Price < 0)
                 return Result<TimeSlotResponse>.Fail(
                     Error.Validation("TimeSlot.InvalidPrice", "Price cannot be negative.")
-                ); 
+                );
 
-            #endregion
-
-            // ✅ Overlap
+            // 🔹 4. Overlap check
             var overlapSpec = new TimeSlotOverlapSpec(
                 request.ClinicId,
                 request.StartTime,
@@ -66,6 +83,7 @@ namespace ClinicMicroServices.Services.Services
                     Error.Validation("TimeSlot.Overlap", "This slot overlaps with existing one.")
                 );
 
+            // 🔹 5. Create Slot
             var slot = new TimeSlot
             {
                 ClinicId = request.ClinicId,
@@ -75,11 +93,10 @@ namespace ClinicMicroServices.Services.Services
                 Price = request.Price
             };
 
-            var clinic = await clinicRepo.GetByIdAsync(slot!.ClinicId);
             await repo.AddAsync(slot);
             await _unitOfWork.SaveChangesAsync();
 
-            return Result<TimeSlotResponse>.Ok(Map(slot, clinic));
+            return Result<TimeSlotResponse>.Ok(Map(slot, null));
         }
 
         #endregion
@@ -120,7 +137,7 @@ namespace ClinicMicroServices.Services.Services
 
         #region Delete
 
-        public async Task<Result<bool>> DeleteAsync(int id)
+        public async Task<Result<bool>> DeleteAsync(int id, string doctorId)
         {
             var repo = _unitOfWork.GetRepository<TimeSlot, int>();
 
@@ -131,6 +148,27 @@ namespace ClinicMicroServices.Services.Services
                     Error.NotFound("TimeSlot.NotFound", $"TimeSlot {id} not found")
                 );
 
+            // 🔹 1. Get Doctor from IdentityUserId
+            var doctorRepo = _unitOfWork.GetRepository<Doctor, Guid>();
+
+            var doctorSpec = new DoctorByIdentityUserIdSpec(doctorId);
+            var doctors = await doctorRepo.GetAllAsync(doctorSpec);
+            var doctor = doctors.FirstOrDefault();
+
+            if (doctor is null)
+                return Result<bool>.Fail(
+                    Error.NotFound("Doctor.NotFound", "Doctor not found for this user.")
+                );
+
+            // 🔹 2. Ownership validation
+            var isOwner = await IsDoctorOwnerOfClinic(slot.ClinicId, doctor.Id);
+
+            if (!isOwner)
+                return Result<bool>.Fail(
+                    Error.Forbidden("TimeSlot.Forbidden", "You are not allowed to delete this slot.")
+                );
+
+            // 🔹 3. Business rule
             if (slot.Appointments.Any())
                 return Result<bool>.Fail(
                     Error.Validation("TimeSlot.Booked", "Cannot delete booked slot")
@@ -145,26 +183,43 @@ namespace ClinicMicroServices.Services.Services
         #endregion
 
         #region UpdateTimeSlot
-        public async Task<Result<TimeSlotResponse>> UpdateAsync(int id, UpdateTimeSlotRequest request)
+
+        public async Task<Result<TimeSlotResponse>> UpdateAsync(int id, UpdateTimeSlotRequest request, string doctorId)
         {
             var repo = _unitOfWork.GetRepository<TimeSlot, int>();
-            var clinicRepo = _unitOfWork.GetRepository<DoctorClinic, int>();
 
             var slot = await repo.GetByIdAsync(id);
-            
 
             if (slot is null)
                 return Result<TimeSlotResponse>.Fail(
                     Error.NotFound("TimeSlot.NotFound", $"TimeSlot {id} not found")
                 );
 
-            // ❌ منع التعديل لو فيه حجوزات
+            // 🔹 1. Get Doctor from IdentityUserId
+            var doctorRepo = _unitOfWork.GetRepository<Doctor, Guid>();
+
+            var doctorSpec = new DoctorByIdentityUserIdSpec(doctorId);
+            var doctors = await doctorRepo.GetAllAsync(doctorSpec);
+            var doctor = doctors.FirstOrDefault();
+
+            if (doctor is null)
+                return Result<TimeSlotResponse>.Fail(
+                    Error.NotFound("Doctor.NotFound", "Doctor not found for this user.")
+                );
+
+            // 🔹 2. Ownership validation
+            var isOwner = await IsDoctorOwnerOfClinic(slot.ClinicId, doctor.Id);
+
+            if (!isOwner)
+                return Result<TimeSlotResponse>.Fail(
+                    Error.Forbidden("TimeSlot.Forbidden", "You are not allowed to update this slot.")
+                );
+
+            // 🔹 3. Business rules
             if (slot.Appointments.Any())
                 return Result<TimeSlotResponse>.Fail(
                     Error.Validation("TimeSlot.Booked", "Cannot update a booked slot")
                 );
-
-            // ✅ Partial update
 
             if (request.StartTime.HasValue)
                 slot.StartTime = request.StartTime.Value;
@@ -172,7 +227,6 @@ namespace ClinicMicroServices.Services.Services
             if (request.EndTime.HasValue)
                 slot.EndTime = request.EndTime.Value;
 
-            // Validation after update
             if (slot.EndTime <= slot.StartTime)
                 return Result<TimeSlotResponse>.Fail(
                     Error.Validation("TimeSlot.InvalidRange", "End time must be greater than start time.")
@@ -202,13 +256,11 @@ namespace ClinicMicroServices.Services.Services
 
                 slot.Price = request.Price.Value;
             }
-            var clinic = await clinicRepo.GetByIdAsync(slot!.ClinicId);
+
             repo.Update(slot);
             await _unitOfWork.SaveChangesAsync();
 
-
-
-            return Result<TimeSlotResponse>.Ok(Map(slot, clinic));
+            return Result<TimeSlotResponse>.Ok(Map(slot, null));
         }
 
         #endregion
@@ -237,6 +289,17 @@ namespace ClinicMicroServices.Services.Services
             };
         }
 
+        #endregion
+
+        #region Helper
+        private async Task<bool> IsDoctorOwnerOfClinic(int clinicId, Guid doctorId)
+        {
+            var clinicRepo = _unitOfWork.GetRepository<DoctorClinic, int>();
+
+            var spec = new DoctorOwnsClinicSpec(clinicId, doctorId);
+
+            return await clinicRepo.AnyAsync(spec);
+        }
         #endregion
     }
 }

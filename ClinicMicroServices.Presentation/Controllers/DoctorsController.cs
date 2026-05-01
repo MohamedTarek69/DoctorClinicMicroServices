@@ -14,10 +14,12 @@ namespace ClinicMicroServices.Presentation.Controllers
     public class DoctorsController : ApiBaseController
     {
         private readonly IDoctorService _doctorService;
+        private readonly IIdentityClient _identityClient;
 
-        public DoctorsController(IDoctorService doctorService)
+        public DoctorsController(IDoctorService doctorService, IIdentityClient identityClient)
         {
             _doctorService = doctorService;
+            _identityClient=identityClient;
         }
 
         // ✅ Admin creates doctor (create in Identity + store in Clinic DB)
@@ -52,6 +54,9 @@ namespace ClinicMicroServices.Presentation.Controllers
         [HttpPut("UpdateDoctor/{id:guid}")]
         public async Task<IActionResult> Update(Guid id, [FromBody] UpdateDoctorRequest request)
         {
+            var token = HttpContext.Request.Headers["Authorization"].ToString();
+            _identityClient.SetToken(token); // 🔥 دي أهم سطر
+
             if (!User.IsInRole("Admin"))
             {
                 var callerUserId =
@@ -62,7 +67,7 @@ namespace ClinicMicroServices.Presentation.Controllers
                 if (!isOwner) return Forbid();
             }
 
-            var result = await _doctorService.UpdateDoctorAsync(id, request);
+            var result = await _doctorService.UpdateDoctorAsync(id, request, token);
             return HandleResult(result);
         }
 
@@ -71,6 +76,9 @@ namespace ClinicMicroServices.Presentation.Controllers
         [HttpPut("UpdateDoctorPassword/{id:guid}")]
         public async Task<IActionResult> UpdatePassword(Guid id, [FromBody] UpdateDoctorPasswordRequest req)
         {
+            var token = HttpContext.Request.Headers["Authorization"].ToString();
+            _identityClient.SetToken(token); // 🔥 نفس القصة
+
             if (!User.IsInRole("Admin"))
             {
                 var callerUserId =
@@ -81,7 +89,7 @@ namespace ClinicMicroServices.Presentation.Controllers
                 if (!isOwner) return Forbid();
             }
 
-            var result = await _doctorService.UpdateDoctorPasswordAsync(id, req);
+            var result = await _doctorService.UpdateDoctorPasswordAsync(id, req,token);
             return HandleResult(result);
         }
 

@@ -26,10 +26,7 @@ namespace ClinicMicroServices.Persistence.Data.DbContexts
             base.OnModelCreating(modelBuilder);
 
             // Apply Fluent Configurations
-            modelBuilder.ApplyConfiguration(new DoctorConfiguration());
-            modelBuilder.ApplyConfiguration(new DoctorClinicConfiguration());
-            modelBuilder.ApplyConfiguration(new TimeSlotConfiguration());
-            modelBuilder.ApplyConfiguration(new AppointmentConfiguration());
+            modelBuilder.ApplyConfigurationsFromAssembly(typeof(ClinicDbContext).Assembly);
         }
 
         #endregion
