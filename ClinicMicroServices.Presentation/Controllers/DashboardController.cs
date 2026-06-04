@@ -41,7 +41,7 @@ namespace ClinicMicroServices.Presentation.Controllers
             //if (!Guid.TryParse(doctorId, out var id))
             //    return Unauthorized();
 
-            var result = await _dashboardService.GetDoctorDashboardAsync(doctorId);
+            var result = await _dashboardService.GetDoctorDashboardAsync(doctorId!);
 
             return Ok(result.Value);
         }

@@ -4,6 +4,7 @@ using ClinicMicroServices.Services.Specifications.Appointments;
 using ClinicMicroServices.Services_Abstraction.Interfaces;
 using ClinicMicroServices.Shared.CommonResult;
 using ClinicMicroServices.Shared.DTOs.Appointment;
+using ClinicMicroServices.Shared.DTOs.PatientDtos;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -15,10 +16,14 @@ namespace ClinicMicroServices.Services.Services
     public class AppointmentService : IAppointmentService
     {
         private readonly IUnitOfWork _unitOfWork;
+        private readonly IPatientClient _patientClient;
 
-        public AppointmentService(IUnitOfWork unitOfWork)
+        public AppointmentService(
+            IUnitOfWork unitOfWork,
+            IPatientClient patientClient)
         {
             _unitOfWork = unitOfWork;
+            _patientClient = patientClient;
         }
 
         #region Book
@@ -111,45 +116,115 @@ namespace ClinicMicroServices.Services.Services
         #endregion
 
         #region UpdateStatus
-        public async Task<Result<AppointmentResponse>> UpdateStatusAsync(UpdateAppointmentStatusRequest request)
+        public async Task<Result<AppointmentResponse>>UpdateStatusAsync(UpdateAppointmentStatusRequest request)
         {
-            var repo = _unitOfWork.GetRepository<Appointment, int>();
+            var repo =
+                _unitOfWork.GetRepository<Appointment, int>();
 
-
-            var appointment = await repo.GetByIdAsync(request.AppointmentId);
-
-            var slotRepo = _unitOfWork.GetRepository<TimeSlot, int>();
-            var slot = await slotRepo.GetByIdAsync(appointment!.TimeSlotId);
+            var appointment =
+                await repo.GetByIdAsync(
+                    request.AppointmentId);
 
             if (appointment is null)
+            {
                 return Result<AppointmentResponse>.Fail(
-                    Error.NotFound("Appointment.NotFound", "Appointment not found")
-                );
+                    Error.NotFound(
+                        "Appointment.NotFound",
+                        "Appointment not found"));
+            }
+
+            var slotRepo =
+                _unitOfWork.GetRepository<TimeSlot, int>();
+
+            var slot =
+                await slotRepo.GetByIdAsync(
+                    appointment.TimeSlotId);
 
             if (slot is null)
-                return Result<AppointmentResponse>.Fail(
-                    Error.NotFound("TimeSlot.NotFound", "Time slot not found")
-                );
-
-            // ❌ منع تغيير بعد ما يتأكد أو يتلغي
-            if (appointment.Status == AppointmentStatus.Cancelled||appointment.Status == AppointmentStatus.Completed)
-                return Result<AppointmentResponse>.Fail(
-                    Error.Validation("Appointment.InvalidState", "Cannot modify this appointment")
-                );
-
-
-            // ✅ Mapping
-            appointment.Status = request.Status switch
             {
-                AppointmentStatusDto.Confirmed => AppointmentStatus.Confirmed,
-                AppointmentStatusDto.Cancelled => AppointmentStatus.Cancelled,
-                _ => AppointmentStatus.Pending
+                return Result<AppointmentResponse>.Fail(
+                    Error.NotFound(
+                        "TimeSlot.NotFound",
+                        "Time slot not found"));
+            }
+
+            // Map DTO -> Domain Status
+            var newStatus = request.Status switch
+            {
+                AppointmentStatusDto.Pending
+                    => AppointmentStatus.Pending,
+
+                AppointmentStatusDto.Confirmed
+                    => AppointmentStatus.Confirmed,
+
+                AppointmentStatusDto.Cancelled
+                    => AppointmentStatus.Cancelled,
+
+                AppointmentStatusDto.Completed
+                    => AppointmentStatus.Completed,
+
+                AppointmentStatusDto.NoShow
+                    => AppointmentStatus.NoShow,
+
+                _ => appointment.Status
             };
 
+            // نفس الحالة
+            if (appointment.Status == newStatus)
+            {
+                return Result<AppointmentResponse>.Fail(
+                    Error.Validation(
+                        "Appointment.SameState",
+                        "Appointment already has this status"));
+            }
+
+            // Terminal states
+            if (appointment.Status is
+                AppointmentStatus.Cancelled or
+                AppointmentStatus.Completed or
+                AppointmentStatus.NoShow)
+            {
+                return Result<AppointmentResponse>.Fail(
+                    Error.Validation(
+                        "Appointment.InvalidState",
+                        "Cannot modify this appointment"));
+            }
+
+            // Allowed transitions
+            var isValidTransition =
+                appointment.Status switch
+                {
+                    AppointmentStatus.Pending =>
+                        newStatus is
+                            AppointmentStatus.Confirmed
+                            or AppointmentStatus.Cancelled,
+
+                    AppointmentStatus.Confirmed =>
+                        newStatus is
+                            AppointmentStatus.Completed
+                            or AppointmentStatus.NoShow
+                            or AppointmentStatus.Cancelled,
+
+                    _ => false
+                };
+
+            if (!isValidTransition)
+            {
+                return Result<AppointmentResponse>.Fail(
+                    Error.Validation(
+                        "Appointment.InvalidTransition",
+                        $"Cannot change appointment from " +
+                        $"{appointment.Status} to {newStatus}"));
+            }
+
+            appointment.Status = newStatus;
+
             repo.Update(appointment);
+
             await _unitOfWork.SaveChangesAsync();
 
-            return Result<AppointmentResponse>.Ok(Map(appointment, slot));
+            return Result<AppointmentResponse>.Ok(
+                Map(appointment, slot));
         }
 
         #endregion
@@ -169,6 +244,30 @@ namespace ClinicMicroServices.Services.Services
             return Result<List<AppointmentResponse>>.Ok(responses);
         }
 
+        public async Task<Result<List<AppointmentResponse>>>
+            ShowClinicConfirmedAppointmentsAsync(int clinicId)
+        {
+            return await GetClinicAppointmentsByStatusAsync(
+                clinicId,
+                AppointmentStatus.Confirmed);
+        }
+
+        public async Task<Result<List<AppointmentResponse>>>
+            ShowClinicPendingAppointmentsAsync(int clinicId)
+        {
+            return await GetClinicAppointmentsByStatusAsync(
+                clinicId,
+                AppointmentStatus.Pending);
+        }
+
+        public async Task<Result<List<AppointmentResponse>>>
+            ShowClinicCancelledAppointmentsAsync(int clinicId)
+        {
+            return await GetClinicAppointmentsByStatusAsync(
+                clinicId,
+                AppointmentStatus.Cancelled);
+        }
+
         #endregion
 
         #region ShowPatintAppointments
@@ -184,6 +283,115 @@ namespace ClinicMicroServices.Services.Services
                 );
             // ✅ Map to response DTOs
             var responses = appointments.Select(a => Map(a, a.TimeSlot)).ToList();
+            return Result<List<AppointmentResponse>>.Ok(responses);
+        }
+
+        public async Task<Result<List<AppointmentResponse>>>
+            ShowPatientConfirmedAppointmentsAsync(string patientId)
+        {
+            return await GetPatientAppointmentsByStatusAsync(
+                patientId,
+                AppointmentStatus.Confirmed);
+        }
+
+        public async Task<Result<List<AppointmentResponse>>>
+            ShowPatientPendingAppointmentsAsync(string patientId)
+        {
+            return await GetPatientAppointmentsByStatusAsync(
+                patientId,
+                AppointmentStatus.Pending);
+        }
+
+        public async Task<Result<List<AppointmentResponse>>>
+            ShowPatientCancelledAppointmentsAsync(string patientId)
+        {
+            return await GetPatientAppointmentsByStatusAsync(
+                patientId,
+                AppointmentStatus.Cancelled);
+        }
+
+
+        #endregion
+
+        #region ✅ Get Appointment Patient Details
+        public async Task<Result<ReturnedPatientDetailsDto>>GetAppointmentPatientDetailsAsync(int appointmentId, string token){
+            var repo =
+                _unitOfWork.GetRepository<Appointment, int>();
+
+            var appointment =
+                await repo.GetByIdAsync(appointmentId);
+
+            if (appointment is null)
+            {
+                return Result<ReturnedPatientDetailsDto>.Fail(
+                    Error.NotFound(
+                        "Appointment.NotFound",
+                        "Appointment not found"));
+            }
+
+            return await _patientClient
+                .GetPatientDetailsByIdentityUserIdAsync(
+                    appointment.PatientId,
+                    token);
+        }
+
+        #endregion
+
+        #region Filter By Status
+
+        private async Task<Result<List<AppointmentResponse>>>
+            GetClinicAppointmentsByStatusAsync(int clinicId, AppointmentStatus status)
+        {
+            var repo = _unitOfWork.GetRepository<Appointment, int>();
+
+            var spec = new ClinicAppointmentsSpec(clinicId);
+
+            var appointments = await repo.GetAllWithSpecAsync(spec);
+
+            appointments = appointments
+                .Where(a => a.Status == status)
+                .ToList();
+
+            if (appointments is null || !appointments.Any())
+                return Result<List<AppointmentResponse>>.Fail(
+                    Error.NotFound(
+                        "Appointments.NotFound",
+                        $"No {status} appointments found for this clinic")
+                );
+
+            var responses = appointments
+                .Select(a => Map(a, a.TimeSlot))
+                .ToList();
+
+            return Result<List<AppointmentResponse>>.Ok(responses);
+        }
+
+        private async Task<Result<List<AppointmentResponse>>>
+            GetPatientAppointmentsByStatusAsync(string patientId, AppointmentStatus status)
+        {
+            var repo = _unitOfWork.GetRepository<Appointment, int>();
+
+            var patientGuid = Guid.Parse(patientId);
+
+            var spec = new PatientAppointmentsSpec(patientGuid);
+
+            var appointments = await repo.GetAllWithSpecAsync(spec);
+
+            appointments = appointments
+                .Where(a => a.Status == status)
+                .ToList();
+
+            if (appointments is null || !appointments.Any())
+                return Result<List<AppointmentResponse>>.Fail(
+                    Error.NotFound(
+                        "Appointments.NotFound",
+                        $"No {status} appointments found for this patient")
+                );
+
+            var responses = appointments
+                .Select(a => Map(a, a.TimeSlot))
+                .ToList();
+
             return Result<List<AppointmentResponse>>.Ok(responses);
         }
 
@@ -220,6 +428,7 @@ namespace ClinicMicroServices.Services.Services
         }
 
         #endregion
+
 
     }
 }

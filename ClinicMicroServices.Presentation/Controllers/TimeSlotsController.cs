@@ -22,7 +22,7 @@ namespace ClinicMicroServices.Presentation.Controllers
             _service = service;
         }
 
-        // ✅ Create slot (Admin or Doctor)
+        // ✅ Create slot (Doctor)
         [Authorize(Roles = "Doctor")]
         [HttpPost("createtimeslots")]   
         public async Task<IActionResult> Create([FromBody] CreateTimeSlotRequest request)

@@ -26,29 +26,49 @@ namespace ClinicMicroServices.Services.Services
 
         public async Task<Result<TimeSlotResponse>> CreateAsync(CreateTimeSlotRequest request, string doctorId)
         {
+            Console.WriteLine("========================================");
+            Console.WriteLine("CREATE TIMESLOT REQUEST");
+            Console.WriteLine("========================================");
+            Console.WriteLine($"ClinicId = {request.ClinicId}");
+            Console.WriteLine($"StartTime = {request.StartTime}");
+            Console.WriteLine($"EndTime = {request.EndTime}");
+            Console.WriteLine($"Capacity = {request.Capacity}");
+            Console.WriteLine($"Price = {request.Price}");
+            Console.WriteLine($"DoctorId From Token = {doctorId}");
+
             var repo = _unitOfWork.GetRepository<TimeSlot, int>();
 
-            // 🔹 1. Get Doctor from IdentityUserId
+            // 🔹 Get Doctor from IdentityUserId
             var doctorRepo = _unitOfWork.GetRepository<Doctor, Guid>();
 
             var doctorSpec = new DoctorByIdentityUserIdSpec(doctorId);
             var doctors = await doctorRepo.GetAllAsync(doctorSpec);
             var doctor = doctors.FirstOrDefault();
 
+            Console.WriteLine($"Doctor Entity Id = {doctor?.Id}");
+
             if (doctor is null)
+            {
+                Console.WriteLine("Doctor NOT FOUND");
                 return Result<TimeSlotResponse>.Fail(
                     Error.NotFound("Doctor.NotFound", "Doctor not found for this user.")
                 );
+            }
 
-            // 🔹 2. Ownership validation (Clinic ↔ Doctor)
+            // 🔹 Ownership validation
             var isOwner = await IsDoctorOwnerOfClinic(request.ClinicId, doctor.Id);
 
+            Console.WriteLine($"IsOwner = {isOwner}");
+
             if (!isOwner)
+            {
+                Console.WriteLine("FORBIDDEN - Doctor is not owner of clinic");
                 return Result<TimeSlotResponse>.Fail(
                     Error.Forbidden("TimeSlot.Forbidden", "You are not allowed to add slots to this clinic.")
                 );
+            }
 
-            // 🔹 3. Validations
+            // 🔹 Validations
             if (request.EndTime <= request.StartTime)
                 return Result<TimeSlotResponse>.Fail(
                     Error.Validation("TimeSlot.InvalidRange", "End time must be greater than start time.")
@@ -69,7 +89,7 @@ namespace ClinicMicroServices.Services.Services
                     Error.Validation("TimeSlot.InvalidPrice", "Price cannot be negative.")
                 );
 
-            // 🔹 4. Overlap check
+            // 🔹 Overlap check
             var overlapSpec = new TimeSlotOverlapSpec(
                 request.ClinicId,
                 request.StartTime,
@@ -83,7 +103,7 @@ namespace ClinicMicroServices.Services.Services
                     Error.Validation("TimeSlot.Overlap", "This slot overlaps with existing one.")
                 );
 
-            // 🔹 5. Create Slot
+            // 🔹 Create Slot
             var slot = new TimeSlot
             {
                 ClinicId = request.ClinicId,
@@ -95,6 +115,8 @@ namespace ClinicMicroServices.Services.Services
 
             await repo.AddAsync(slot);
             await _unitOfWork.SaveChangesAsync();
+
+            Console.WriteLine($"SUCCESS - Slot Created. Id = {slot.Id}");
 
             return Result<TimeSlotResponse>.Ok(Map(slot, null));
         }
@@ -294,11 +316,30 @@ namespace ClinicMicroServices.Services.Services
         #region Helper
         private async Task<bool> IsDoctorOwnerOfClinic(int clinicId, Guid doctorId)
         {
+            Console.WriteLine("========================================");
+            Console.WriteLine("OWNERSHIP CHECK");
+            Console.WriteLine("========================================");
+            Console.WriteLine($"Requested ClinicId = {clinicId}");
+            Console.WriteLine($"Current DoctorId = {doctorId}");
+
             var clinicRepo = _unitOfWork.GetRepository<DoctorClinic, int>();
 
-            var spec = new DoctorOwnsClinicSpec(clinicId, doctorId);
+            var clinic = await clinicRepo.GetByIdAsync(clinicId);
 
-            return await clinicRepo.AnyAsync(spec);
+            if (clinic is null)
+            {
+                Console.WriteLine("Clinic NOT FOUND");
+                return false;
+            }
+
+            Console.WriteLine($"Clinic Id = {clinic.Id}");
+            Console.WriteLine($"Clinic DoctorId = {clinic.DoctorId}");
+
+            var isOwner = clinic.DoctorId == doctorId;
+
+            Console.WriteLine($"Is Owner = {isOwner}");
+
+            return isOwner;
         }
         #endregion
     }

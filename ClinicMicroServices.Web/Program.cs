@@ -33,9 +33,18 @@ namespace ClinicMicroServices.Web
             builder.Services.AddSwaggerGen();
 
             // Database
-            builder.Services.AddDbContext<ClinicDbContext>(options =>
-                options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection"))
-            );
+            builder.Services.AddDbContext<ClinicDbContext>(options =>{
+                options.UseSqlServer(
+                    builder.Configuration.GetConnectionString("DefaultConnection"),
+                    sqlOptions =>
+                    {
+                        sqlOptions.EnableRetryOnFailure(
+                            maxRetryCount: 5,
+                            maxRetryDelay: TimeSpan.FromSeconds(10),
+                            errorNumbersToAdd: null);
+                    });
+
+            });
 
             builder.Services.Configure<ApiBehaviorOptions>(options =>
             {
@@ -56,6 +65,12 @@ namespace ClinicMicroServices.Web
             builder.Services.AddHttpClient<IIdentityClient, IdentityClient>(client =>
             {
                 client.BaseAddress = new Uri(identityAuthority!);
+            });
+
+            // HTTP Client → Patient Service
+            builder.Services.AddHttpClient<IPatientClient, PatientClient>(client =>
+            {
+                    client.BaseAddress = new Uri(builder.Configuration["Services:Patient"]!);
             });
 
             // JWT Authentication

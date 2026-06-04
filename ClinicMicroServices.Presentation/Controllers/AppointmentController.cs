@@ -65,6 +65,20 @@ namespace ClinicMicroServices.Presentation.Controllers
             return Ok(result.Value);
         }
 
+        // ✅ Get Appointment Patient Details
+        [Authorize(Roles = "AdminOrDoctor")]
+        [HttpGet("{appointmentId}/patient")]
+        public async Task<IActionResult> GetAppointmentPatientDetails(int appointmentId)
+        {
+            var token = Request.Headers.Authorization.ToString();
+
+            var result = await _service.GetAppointmentPatientDetailsAsync(appointmentId, token);
+
+            return HandleResult(result);
+        }
+
+        #region Clinic Appointments By Status
+
         [Authorize(Roles = "Doctor")]
         [HttpGet("ShowClinicAppointments")]
         public async Task<IActionResult> ShowClinicAppointments(int clinicId)
@@ -74,6 +88,40 @@ namespace ClinicMicroServices.Presentation.Controllers
             var result = await _service.ShowClinicAppointmentsAsync(clinicId);
             return HandleResult(result);
         }
+
+        [Authorize(Roles = "Doctor")]
+        [HttpGet("clinic/{clinicId:int}/confirmed")]
+        public async Task<IActionResult> ShowClinicConfirmedAppointments(int clinicId)
+        {
+            var result = await _service
+                .ShowClinicConfirmedAppointmentsAsync(clinicId);
+
+            return HandleResult(result);
+        }
+
+        [Authorize(Roles = "Doctor")]
+        [HttpGet("clinic/{clinicId:int}/pending")]
+        public async Task<IActionResult> ShowClinicPendingAppointments(int clinicId)
+        {
+            var result = await _service
+                .ShowClinicPendingAppointmentsAsync(clinicId);
+
+            return HandleResult(result);
+        }
+
+        [Authorize(Roles = "Doctor")]
+        [HttpGet("clinic/{clinicId:int}/cancelled")]
+        public async Task<IActionResult> ShowClinicCancelledAppointments(int clinicId)
+        {
+            var result = await _service
+                .ShowClinicCancelledAppointmentsAsync(clinicId);
+
+            return HandleResult(result);
+        }
+
+        #endregion
+
+        #region Patient Appointments By Status
 
         [Authorize(Roles = "Patient")]
         [HttpGet("ShowPatientAppointments")]
@@ -85,5 +133,49 @@ namespace ClinicMicroServices.Presentation.Controllers
             var result = await _service.ShowPatientAppointmentsAsync(patientId!);
             return HandleResult(result);
         }
+
+        [Authorize(Roles = "Patient")]
+        [HttpGet("patient/confirmed")]
+        public async Task<IActionResult> ShowPatientConfirmedAppointments()
+        {
+            var patientId =
+                User.FindFirstValue(ClaimTypes.NameIdentifier) ??
+                User.FindFirstValue("sub");
+
+            var result = await _service
+                .ShowPatientConfirmedAppointmentsAsync(patientId!);
+
+            return HandleResult(result);
+        }
+
+        [Authorize(Roles = "Patient")]
+        [HttpGet("patient/pending")]
+        public async Task<IActionResult> ShowPatientPendingAppointments()
+        {
+            var patientId =
+                User.FindFirstValue(ClaimTypes.NameIdentifier) ??
+                User.FindFirstValue("sub");
+
+            var result = await _service
+                .ShowPatientPendingAppointmentsAsync(patientId!);
+
+            return HandleResult(result);
+        }
+
+        [Authorize(Roles = "Patient")]
+        [HttpGet("patient/cancelled")]
+        public async Task<IActionResult> ShowPatientCancelledAppointments()
+        {
+            var patientId =
+                User.FindFirstValue(ClaimTypes.NameIdentifier) ??
+                User.FindFirstValue("sub");
+
+            var result = await _service
+                .ShowPatientCancelledAppointmentsAsync(patientId!);
+
+            return HandleResult(result);
+        }
+
+        #endregion
     }
 }
