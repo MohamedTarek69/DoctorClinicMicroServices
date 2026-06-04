@@ -7,7 +7,7 @@ using ClinicMicroServices.Domain.Entites;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
-namespace ClinicMicroServices.Persistence
+namespace ClinicMicroServices.Persistence.Data.Config
 {
     public class AppointmentConfiguration : IEntityTypeConfiguration<Appointment>
     {
@@ -17,7 +17,6 @@ namespace ClinicMicroServices.Persistence
 
             builder.HasKey(a => a.Id);
 
-            // ✅ int auto-increment
             builder.Property(a => a.Id)
                    .ValueGeneratedOnAdd();
 
@@ -25,14 +24,23 @@ namespace ClinicMicroServices.Persistence
 
             builder.Property(a => a.Status)
                    .IsRequired()
-                   .HasConversion<int>() // store enum as int
+                   .HasConversion<int>()
                    .HasDefaultValue(AppointmentStatus.Pending);
 
-            // ✅ Unique TimeSlotId to guarantee 0..1 booking
-            builder.HasIndex(a => a.TimeSlotId).IsUnique();
+            // ✅ NOT unique anymore
+            builder.HasIndex(a => a.TimeSlotId);
 
-            // Redundant-but-useful index
+            // ✅ prevent duplicate booking by same patient
+            builder.HasIndex(a => new { a.TimeSlotId, a.PatientId })
+                   .IsUnique();
+
             builder.HasIndex(a => new { a.ClinicId, a.PatientId });
+
+            // ✅ relation
+            builder.HasOne(a => a.TimeSlot)
+                   .WithMany(ts => ts.Appointments)
+                   .HasForeignKey(a => a.TimeSlotId)
+                   .OnDelete(DeleteBehavior.Restrict);
         }
     }
 }

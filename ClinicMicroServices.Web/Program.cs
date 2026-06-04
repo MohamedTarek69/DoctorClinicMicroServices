@@ -10,8 +10,9 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using System.Security.Claims;
-using System.IdentityModel.Tokens.Jwt;
 using System.Text;
+using ClinicMicroServices.Web.Factories;
+using ClinicMicroServices.Persistence.Data.Config;
 
 namespace ClinicMicroServices.Web
 {
@@ -19,12 +20,11 @@ namespace ClinicMicroServices.Web
     {
         public static async Task Main(string[] args)
         {
-
             #region Add Services to the container
+
             var builder = WebApplication.CreateBuilder(args);
 
             var identityAuthority = builder.Configuration["Identity:Authority"];
-
 
             builder.Services.AddControllers()
                 .AddApplicationPart(typeof(ClinicMicroServices.Presentation.Controllers.ApiBaseController).Assembly);
@@ -32,20 +32,48 @@ namespace ClinicMicroServices.Web
             builder.Services.AddEndpointsApiExplorer();
             builder.Services.AddSwaggerGen();
 
-            builder.Services.AddDbContext<ClinicDbContext>(options =>
-                options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection"))
-            );
+            // Database
+            builder.Services.AddDbContext<ClinicDbContext>(options =>{
+                options.UseSqlServer(
+                    builder.Configuration.GetConnectionString("DefaultConnection"),
+                    sqlOptions =>
+                    {
+                        sqlOptions.EnableRetryOnFailure(
+                            maxRetryCount: 5,
+                            maxRetryDelay: TimeSpan.FromSeconds(10),
+                            errorNumbersToAdd: null);
+                    });
 
+            });
+
+            builder.Services.Configure<ApiBehaviorOptions>(options =>
+            {
+                options.InvalidModelStateResponseFactory = ApiResponseFactory.GenerateApiValidationResponse;
+            });
+
+            builder.Services.AddHttpContextAccessor();
+
+            // Services
             builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
             builder.Services.AddScoped<IDoctorService, DoctorService>();
+            builder.Services.AddScoped<IClinicService, ClinicService>();
+            builder.Services.AddScoped<ITimeSlotService, TimeSlotService>();
+            builder.Services.AddScoped<IAppointmentService, AppointmentService>();
+            builder.Services.AddScoped<IDashboardService, DashboardService>();
 
-            // ✅ HTTP Client to Identity (for internal calls)
+            // HTTP Client → Identity Service
             builder.Services.AddHttpClient<IIdentityClient, IdentityClient>(client =>
             {
                 client.BaseAddress = new Uri(identityAuthority!);
             });
 
-            // ✅ JWT Authentication (NO Authority because Identity is not OIDC provider)
+            // HTTP Client → Patient Service
+            builder.Services.AddHttpClient<IPatientClient, PatientClient>(client =>
+            {
+                    client.BaseAddress = new Uri(builder.Configuration["Services:Patient"]!);
+            });
+
+            // JWT Authentication
             builder.Services.AddAuthentication(options =>
             {
                 options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
@@ -77,47 +105,31 @@ namespace ClinicMicroServices.Web
                 };
             });
 
-
-            // ✅ Authorization Policies
+            // Authorization Policies
             builder.Services.AddAuthorization(options =>
             {
                 options.AddPolicy("AdminOnly", p => p.RequireRole("Admin"));
                 options.AddPolicy("DoctorOnly", p => p.RequireRole("Doctor"));
                 options.AddPolicy("LabOnly", p => p.RequireRole("Lab"));
-                options.AddPolicy("UserOnly", p => p.RequireRole("User"));
+                options.AddPolicy("PatientOnly", p => p.RequireRole("Patient"));
                 options.AddPolicy("AdminOrDoctor", p => p.RequireRole("Admin", "Doctor"));
             });
 
+            // CORS
             builder.Services.AddCors(options =>
             {
                 options.AddPolicy("AllowAll", policy =>
-                    policy.AllowAnyOrigin().AllowAnyMethod().AllowAnyHeader()
-                );
+                {
+                    policy.AllowAnyOrigin()
+                          .AllowAnyMethod()
+                          .AllowAnyHeader();
+                });
             });
 
+            // Port
             builder.WebHost.ConfigureKestrel(options =>
             {
-                options.ListenAnyIP(5128); // ✅ Clinic port
-            });
-
-            builder.Services.Configure<ApiBehaviorOptions>(options =>
-            {
-                options.InvalidModelStateResponseFactory = context =>
-                {
-                    return new BadRequestObjectResult(new
-                    {
-                        title = "Validation Error",
-                        status = 400,
-                        detail = "One or more validation errors occurred",
-                        traceId = context.HttpContext.TraceIdentifier,
-                        errors = context.ModelState
-                            .Where(x => x.Value?.Errors.Count > 0)
-                            .ToDictionary(
-                                kvp => kvp.Key,
-                                kvp => kvp.Value!.Errors.Select(e => e.ErrorMessage).ToArray()
-                            )
-                    });
-                };
+                options.ListenAnyIP(5128);
             });
 
             #endregion
@@ -125,14 +137,16 @@ namespace ClinicMicroServices.Web
             var app = builder.Build();
 
             #region DataSeed - Apply Migration
+
             using (var scope = app.Services.CreateScope())
             {
                 var db = scope.ServiceProvider.GetRequiredService<ClinicDbContext>();
                 await db.Database.MigrateAsync();
             }
+
             #endregion
 
-            #region Configure the HTTP request pipeline
+            #region Configure HTTP Pipeline
 
             app.UseMiddleware<ExceptionHandlerMiddleware>();
 
@@ -143,8 +157,11 @@ namespace ClinicMicroServices.Web
             }
 
             app.UseRouting();
+
+            // Enable CORS
             app.UseCors("AllowAll");
 
+            // Logging middleware
             app.Use(async (ctx, next) =>
             {
                 Console.WriteLine($"REQ: {ctx.Request.Method} {ctx.Request.Path}");
@@ -157,9 +174,9 @@ namespace ClinicMicroServices.Web
 
             app.MapControllers();
 
-            await app.RunAsync();
-
             #endregion
+
+            await app.RunAsync();
         }
     }
 }

@@ -1,10 +1,11 @@
 ﻿using ClinicMicroServices.Domain.Contracts;
 using ClinicMicroServices.Domain.Entites;
-using ClinicMicroServices.Services.Specifications;
+using ClinicMicroServices.Services.Specifications.Doctors;
 using ClinicMicroServices.Services_Abstraction.Interfaces;
 using ClinicMicroServices.Shared;
 using ClinicMicroServices.Shared.CommonResult;
 using ClinicMicroServices.Shared.DTOs.DoctorDtos;
+using Microsoft.AspNetCore.Http;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -87,35 +88,58 @@ namespace ClinicMicroServices.Services.Services
             );
         }
 
-        public async Task<Result<DoctorResponse>> UpdateDoctorAsync(Guid id, UpdateDoctorRequest request)
+        public async Task<Result<DoctorResponse>> UpdateDoctorAsync(Guid id, UpdateDoctorRequest request, string token)
         {
             var repo = _unitOfWork.GetRepository<Doctor, Guid>();
 
             var doctor = await repo.GetByIdAsync(id);
             if (doctor is null)
-                return Result<DoctorResponse>.Fail(Error.NotFound("Doctor.NotFound", $"Doctor {id} not found"));
+                return Result<DoctorResponse>.Fail(
+                    Error.NotFound("Doctor.NotFound", $"Doctor {id} not found"));
 
-            // 1) Update Clinic DB fields
-            doctor.DisplayName = request.DisplayName;
-            doctor.Email = request.Email;
-            doctor.PhoneNumber = request.PhoneNumber;
-            doctor.Specialty = request.Specialty;
-            doctor.IsActive = request.IsActive;
-
-            repo.Update(doctor);
-            await _unitOfWork.SaveChangesAsync();
-
-            // 2) Update Identity user (same data)
-            var identityUpdate = await _identityClient.UpdateDoctorAsync(doctor.IdentityUserId, new()
+            // ✅ احتفظ بالقيم القديمة (علشان rollback)
+            var oldIdentityData = new UpdateIdentityUserRequest
             {
-                DisplayName = request.DisplayName,
-                Email = request.Email,
-                PhoneNumber = request.PhoneNumber,
-                //Password = request.Password // optional
-            });
+                DisplayName = doctor.DisplayName,
+                Email = doctor.Email,
+                PhoneNumber = doctor.PhoneNumber
+            };
+
+            // ✅ 1) Update Identity FIRST
+            var identityUpdate = await _identityClient.UpdateDoctorAsync(
+                doctor.IdentityUserId,
+                new UpdateIdentityUserRequest
+                {
+                    DisplayName = request.DisplayName,
+                    Email = request.Email,
+                    PhoneNumber = request.PhoneNumber
+                },token);
 
             if (identityUpdate.IsFailure)
                 return Result<DoctorResponse>.Fail(identityUpdate.Errors.ToList());
+
+            try
+            {
+                // ✅ 2) Update DB
+                doctor.DisplayName = request.DisplayName;
+                doctor.Email = request.Email;
+                doctor.PhoneNumber = request.PhoneNumber;
+                doctor.Specialty = request.Specialty;
+                doctor.IsActive = request.IsActive;
+
+                repo.Update(doctor);
+                await _unitOfWork.SaveChangesAsync();
+            }
+            catch (Exception)
+            {
+                // 🔥 3) Rollback Identity لو DB فشل
+                await _identityClient.UpdateDoctorAsync(
+                    doctor.IdentityUserId,
+                    oldIdentityData,token);
+
+                return Result<DoctorResponse>.Fail(
+                    Error.Failure("Doctor.UpdateFailed", "Failed to update doctor. Changes rolled back."));
+            }
 
             return Result<DoctorResponse>.Ok(MapToResponse(doctor));
         }
@@ -164,10 +188,8 @@ namespace ClinicMicroServices.Services.Services
             doctor.IsActive = false;
             repo.Update(doctor);
             await _unitOfWork.SaveChangesAsync();
-            // Optional: Deactivate in Identity
-            //var identityResult = await _identityClient.DeactivateUserAsync(doctor.IdentityUserId);
-            //if (identityResult.IsFailure)
-            //    return Result<bool>.Fail(identityResult.Errors.ToList());
+                //Optional: Deactivate in Identity
+               //var identityResult = await _identityClient.DeactivateUserAsync(d 
             return Result<bool>.Ok(true);
 
         }
@@ -183,16 +205,47 @@ namespace ClinicMicroServices.Services.Services
             IsActive = d.IsActive
         };
 
-        public async Task<Result<bool>> UpdateDoctorPasswordAsync(Guid id, UpdateDoctorPasswordRequest newPassword)
+        public async Task<Result<bool>> UpdateDoctorPasswordAsync(Guid id, UpdateDoctorPasswordRequest newPassword, string token)
         {
             var repo = _unitOfWork.GetRepository<Doctor, Guid>();
+
             var doctor = await repo.GetByIdAsync(id);
             if (doctor is null)
-                return Result<bool>.Fail(Error.NotFound("Doctor.NotFound", "Doctor not found."));
+                return Result<bool>.Fail(
+                    Error.NotFound("Doctor.NotFound", "Doctor not found."));
 
-            var identityResult = await _identityClient.UpdatePasswordAsync(doctor.IdentityUserId, newPassword);
+            // ❗ مفيش state قديم نرجعله في password
+            // لكن نقدر نستخدم "best practice" rollback attempt (اختياري)
+
+            // 1) Update Identity FIRST
+            var identityResult = await _identityClient.UpdatePasswordAsync(
+                doctor.IdentityUserId,
+                newPassword,
+                token);
+
             if (identityResult.IsFailure)
                 return Result<bool>.Fail(identityResult.Errors.ToList());
+
+            try
+            {
+                // 2) DB update (لو عندك audit أو flag مثلاً)
+                // مفيش password في clinic DB غالبًا
+                // بس ممكن نعمل logging / last updated
+
+
+                repo.Update(doctor);
+                await _unitOfWork.SaveChangesAsync();
+            }
+            catch (Exception)
+            {
+                // ⚠️ "Compensation action"
+                // مفيش rollback حقيقي للـ password إلا بإعادة تعيينه
+
+                // (اختياري) إعادة تعيين password قديم لو عندك backup policy
+                return Result<bool>.Fail(
+                    Error.Failure("Doctor.PasswordUpdateFailed",
+                    "Password updated in Identity but failed in DB sync."));
+            }
 
             return Result<bool>.Ok(true);
         }
@@ -203,6 +256,21 @@ namespace ClinicMicroServices.Services.Services
             var doctor = await repo.GetByIdAsync(doctorId);
             if (doctor is null) return false;
             return doctor.IdentityUserId == identityUserId;
+        }
+
+        public async Task<Result<bool>> IsDoctorActiveByIdentityUserIdAsync(string identityUserId)
+        {
+            var repo = _unitOfWork.GetRepository<Doctor, Guid>();
+
+            var doctors = await repo.GetAllAsync(new DoctorByIdentityUserIdSpec(identityUserId));
+            var doctor = doctors.FirstOrDefault();
+
+            if (doctor is null)
+                return Result<bool>.Fail(
+                    Error.NotFound("Doctor.NotFound", "Doctor not found.")
+                );
+
+            return Result<bool>.Ok(doctor.IsActive);
         }
     }
 }

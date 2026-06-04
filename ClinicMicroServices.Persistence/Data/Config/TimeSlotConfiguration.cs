@@ -7,7 +7,7 @@ using ClinicMicroServices.Domain.Entites;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
-namespace ClinicMicroServices.Persistence
+namespace ClinicMicroServices.Persistence.Data.Config
 {
     public class TimeSlotConfiguration : IEntityTypeConfiguration<TimeSlot>
     {
@@ -23,16 +23,16 @@ namespace ClinicMicroServices.Persistence
 
             builder.Property(ts => ts.StartTime).IsRequired();
             builder.Property(ts => ts.EndTime).IsRequired();
-            builder.Property(ts => ts.IsAvailable).HasDefaultValue(true);
+            builder.Property(ts => ts.Capacity).HasDefaultValue(10);
 
             // Optional: index for quick lookup
             builder.HasIndex(ts => new { ts.ClinicId, ts.StartTime, ts.EndTime });
 
-            // Relationship TimeSlot (1) <-> (0..1) Appointment
+            // Relationship TimeSlot (1) <-> (0..M) Appointment
             // The Appointment entity will hold the FK (TimeSlotId) and it must be unique.
-            builder.HasOne(ts => ts.Appointment)
+            builder.HasMany(ts => ts.Appointments)
                    .WithOne(a => a.TimeSlot)
-                   .HasForeignKey<Appointment>(a => a.TimeSlotId)
+                   .HasForeignKey(a => a.TimeSlotId)
                    .OnDelete(DeleteBehavior.Restrict);
         }
     }

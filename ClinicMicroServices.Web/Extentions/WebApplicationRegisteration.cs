@@ -1,0 +1,21 @@
+﻿using ClinicMicroServices.Persistence.Data.DbContexts;
+using ClinicMicroServices.Domain.Contracts;
+using Microsoft.EntityFrameworkCore;
+
+namespace Identity_Auth_MicroService.Web.Extentions
+{
+    public static class WebApplicationRegisteration
+    {
+        public static async Task<WebApplication> MigrateIdentityDatabaseAsync(this WebApplication app)
+        {
+            using var scope = app.Services.CreateAsyncScope();
+            var DbContextService = scope.ServiceProvider.GetRequiredService<ClinicDbContext>();
+            var pendingMigrations = await DbContextService.Database.GetPendingMigrationsAsync();
+            if (pendingMigrations.Any())
+            {
+                await DbContextService.Database.MigrateAsync();
+            }
+            return app;
+        }
+    }
+}

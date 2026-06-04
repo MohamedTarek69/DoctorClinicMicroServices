@@ -39,5 +39,6 @@ namespace ClinicMicroServices.Persistence.Repositories
 
             return query;
         }
+
     }
 }

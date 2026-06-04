@@ -36,6 +36,9 @@ namespace ClinicMicroServices.Persistence.Data.ClinicMigrations
                     b.Property<Guid>("PatientId")
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<decimal>("PriceAtBooking")
+                        .HasColumnType("decimal(18,2)");
+
                     b.Property<int>("Status")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("int")
@@ -46,10 +49,12 @@ namespace ClinicMicroServices.Persistence.Data.ClinicMigrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("TimeSlotId")
-                        .IsUnique();
+                    b.HasIndex("TimeSlotId");
 
                     b.HasIndex("ClinicId", "PatientId");
+
+                    b.HasIndex("TimeSlotId", "PatientId")
+                        .IsUnique();
 
                     b.ToTable("Appointments", (string)null);
                 });
@@ -139,16 +144,19 @@ namespace ClinicMicroServices.Persistence.Data.ClinicMigrations
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
 
+                    b.Property<int>("Capacity")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int")
+                        .HasDefaultValue(10);
+
                     b.Property<int>("ClinicId")
                         .HasColumnType("int");
 
                     b.Property<DateTime>("EndTime")
                         .HasColumnType("datetime2");
 
-                    b.Property<bool>("IsAvailable")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("bit")
-                        .HasDefaultValue(true);
+                    b.Property<decimal>("Price")
+                        .HasColumnType("decimal(18,2)");
 
                     b.Property<DateTime>("StartTime")
                         .HasColumnType("datetime2");
@@ -169,8 +177,8 @@ namespace ClinicMicroServices.Persistence.Data.ClinicMigrations
                         .IsRequired();
 
                     b.HasOne("ClinicMicroServices.Domain.Entites.TimeSlot", "TimeSlot")
-                        .WithOne("Appointment")
-                        .HasForeignKey("ClinicMicroServices.Domain.Entites.Appointment", "TimeSlotId")
+                        .WithMany("Appointments")
+                        .HasForeignKey("TimeSlotId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
@@ -215,7 +223,7 @@ namespace ClinicMicroServices.Persistence.Data.ClinicMigrations
 
             modelBuilder.Entity("ClinicMicroServices.Domain.Entites.TimeSlot", b =>
                 {
-                    b.Navigation("Appointment");
+                    b.Navigation("Appointments");
                 });
 #pragma warning restore 612, 618
         }
