@@ -77,6 +77,15 @@ namespace ClinicMicroServices.Presentation.Controllers
             return HandleResult(result);
         }
 
+        // ✅ Get All Appointments (Admin)
+        [Authorize(Roles = "Admin")]
+        [HttpGet("all")]
+        public async Task<IActionResult> GetAllAppointments()
+        {
+            var result = await _service.GetAllAppointmentsAsync();
+            return HandleResult(result);
+        }
+
         #region Clinic Appointments By Status
 
         [Authorize(Roles = "Doctor")]

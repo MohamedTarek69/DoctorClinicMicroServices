@@ -120,5 +120,14 @@ namespace ClinicMicroServices.Presentation.Controllers
 
             return Ok(new { isActive = result.Value });
         }
+
+        [Authorize(Roles = "Patient")]
+        [HttpGet("BySpecialty/{specialty}")]
+        public async Task<IActionResult> GetBySpecialty(string specialty)
+        {
+            var doctors = await _doctorService.GetBySpecialty(specialty);
+
+            return Ok(doctors);
+        }
     }
 }

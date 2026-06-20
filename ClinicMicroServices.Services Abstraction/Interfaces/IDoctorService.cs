@@ -20,5 +20,6 @@ namespace ClinicMicroServices.Services_Abstraction.Interfaces
         Task<Result<bool>> UpdateDoctorPasswordAsync(Guid id, UpdateDoctorPasswordRequest newPassword, string token);
         Task<bool> IsDoctorOwnerAsync(Guid doctorId, string identityUserId);
         Task<Result<bool>> IsDoctorActiveByIdentityUserIdAsync(string identityUserId);
+        Task<IEnumerable<DoctorBySpecialtyResponse>> GetBySpecialty(string specialty);
     }
 }
