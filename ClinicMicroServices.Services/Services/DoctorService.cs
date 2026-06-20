@@ -272,5 +272,26 @@ namespace ClinicMicroServices.Services.Services
 
             return Result<bool>.Ok(doctor.IsActive);
         }
+
+        public async Task<IEnumerable<DoctorBySpecialtyResponse>> GetBySpecialty(string specialty)
+        {
+            var repo = _unitOfWork.GetRepository<Doctor, Guid>();
+
+            var spec = new DoctorBySpecialtySpec(specialty);
+
+            var doctors = await repo.GetAllAsync(spec);
+
+            return doctors.Select(d => new DoctorBySpecialtyResponse
+            {
+                Id = d.Id,
+                Name = d.DisplayName,
+                Specialty = d.Specialty,
+
+                Clinics = d.DoctorClinics
+                    .Select(c => c.ClinicName)
+                    .Distinct()
+                    .ToList()
+            });
+        }
     }
 }

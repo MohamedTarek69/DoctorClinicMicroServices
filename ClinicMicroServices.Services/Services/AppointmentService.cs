@@ -8,6 +8,7 @@ using ClinicMicroServices.Shared.DTOs.PatientDtos;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Linq.Expressions;
 using System.Text;
 using System.Threading.Tasks;
 
@@ -99,11 +100,24 @@ namespace ClinicMicroServices.Services.Services
                     Error.Forbidden("Appointment.Forbidden", "You cannot cancel this appointment")
                 );
 
-            // ✅ Already cancelled
+            // Already cancelled
             if (appointment.Status == AppointmentStatus.Cancelled)
+            {
                 return Result<bool>.Fail(
-                    Error.Validation("Appointment.Cancelled", "Already cancelled")
-                );
+                    Error.Validation(
+                        "Appointment.Cancelled",
+                        "Already cancelled"));
+            }
+
+            // Patient cannot cancel confirmed or completed appointments
+            if (appointment.Status is AppointmentStatus.Confirmed
+                or AppointmentStatus.Completed)
+            {
+                return Result<bool>.Fail(
+                    Error.Validation(
+                        "Appointment.CannotCancel",
+                        "Confirmed or completed appointments cannot be cancelled by the patient"));
+            }
 
             appointment.Status = AppointmentStatus.Cancelled;
 
@@ -115,7 +129,7 @@ namespace ClinicMicroServices.Services.Services
 
         #endregion
 
-        #region UpdateStatus
+            #region UpdateStatus
         public async Task<Result<AppointmentResponse>>UpdateStatusAsync(UpdateAppointmentStatusRequest request)
         {
             var repo =
@@ -337,6 +351,26 @@ namespace ClinicMicroServices.Services.Services
 
         #endregion
 
+        #region 📊 Get All Appointments
+
+        public async Task<Result<List<AppointmentResponse>>> GetAllAppointmentsAsync()
+        {
+            var repo = _unitOfWork.GetRepository<Appointment, int>();
+            Expression<Func<Appointment, object>>[] includes = {a => a.TimeSlot, a => a.Clinic};
+            var spec = new AllAppointmentsSpec();
+            var appointments = await repo.GetAllAsync(spec);
+            if (appointments is null || !appointments.Any())
+                return Result<List<AppointmentResponse>>.Fail(
+                    Error.NotFound("Appointments.NotFound", "No appointments found")
+                );
+            var responses = appointments
+                .Select(a => Map(a, a.TimeSlot))
+                .ToList();
+            return Result<List<AppointmentResponse>>.Ok(responses);
+        }
+
+        #endregion
+
         #region Filter By Status
 
         private async Task<Result<List<AppointmentResponse>>>
@@ -423,6 +457,7 @@ namespace ClinicMicroServices.Services.Services
                 AppointmentStatus.Pending => AppointmentStatusDto.Pending,
                 AppointmentStatus.Confirmed => AppointmentStatusDto.Confirmed,
                 AppointmentStatus.Cancelled => AppointmentStatusDto.Cancelled,
+                AppointmentStatus.Completed => AppointmentStatusDto.Completed,
                 _ => AppointmentStatusDto.Pending
             };
         }

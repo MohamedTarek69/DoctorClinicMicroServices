@@ -23,5 +23,6 @@ namespace ClinicMicroServices.Services_Abstraction.Interfaces
         Task<Result<List<AppointmentResponse>>> ShowClinicPendingAppointmentsAsync(int clinicId);
         Task<Result<List<AppointmentResponse>>> ShowClinicCancelledAppointmentsAsync(int clinicId);
         Task<Result<ReturnedPatientDetailsDto>> GetAppointmentPatientDetailsAsync(int appointmentId, string token);
+        Task<Result<List<AppointmentResponse>>> GetAllAppointmentsAsync();
     }
 }

@@ -2,6 +2,7 @@
 using ClinicMicroServices.Domain.Entites;
 using ClinicMicroServices.Persistence.Data.DbContexts;
 using Microsoft.EntityFrameworkCore;
+using System.Linq.Expressions;
 
 namespace ClinicMicroServices.Persistence.Repositories
 {
@@ -41,6 +42,17 @@ namespace ClinicMicroServices.Persistence.Repositories
         {
             return await _dbSet.AsNoTracking().ToListAsync();
         }
+
+    //    public async Task<IEnumerable<TEntity>> GetAllAsync(
+    //params Expression<Func<TEntity, object>>[] includes)
+    //    {
+    //        IQueryable<TEntity> query = _dbSet;
+
+    //        foreach (var include in includes)
+    //            query = query.Include(include);
+
+    //        return await query.AsNoTracking().ToListAsync();
+    //    }
 
         public async Task<TEntity?> GetByIdAsync(ISpecifications<TEntity, TKey> specifications)
         {

@@ -2,6 +2,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Linq.Expressions;
 using System.Text;
 using System.Threading.Tasks;
 
@@ -24,6 +25,9 @@ namespace ClinicMicroServices.Domain.Contracts
         Task<bool> AnyAsync(ISpecifications<TEntity, TKey> specifications);
 
         Task<IReadOnlyList<TEntity>> GetAllWithSpecAsync(ISpecifications<TEntity, TKey> spec);
+
+    //    Task<IEnumerable<TEntity>> GetAllAsync(
+    //params Expression<Func<TEntity, object>>[] includes);
 
 
     }
